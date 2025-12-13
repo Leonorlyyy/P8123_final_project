@@ -40,7 +40,7 @@ nhanes.df = read_csv("nhanes_bp.csv") |>
   )
 ```
 
-# Basic table
+# Descriptive table
 
 ```{r}
 nhanes.df |>
@@ -163,7 +163,8 @@ rs_test_diabetes; rs_test_ckd; rs_test_cvd_chd; rs_test_cvd_stroke; rs_test_cvd_
 
 
 ## Distribution Plots
-#continuous
+
+### Seperate dataset and define survey object
 
 ```{r}
 nhanes.df = 
@@ -178,11 +179,6 @@ nhanes.df =
                        period_grp == "Post-2013" ~ svy_weight_mec / 3)
   )
 
-```
-
-
-
-```{r}
 des <- svydesign(
   ids = ~svy_psu,
   strata = ~svy_strata,
@@ -190,10 +186,9 @@ des <- svydesign(
   nest = TRUE,
   data = nhanes.df
 )
-
 ```
 
-
+### Continuous variable
 
 ```{r}
 layout(matrix(1:2, nrow = 1))
@@ -204,7 +199,7 @@ svyhist(~demo_age_years, design = subset(des, period_grp == "Post-2013"),
 layout(1)
 ```
 
-# categorical
+### Categorical variables
 
 ```{r}
 cat_vars <- c(
