@@ -11,6 +11,7 @@ editor_options:
 library(tidyverse)
 library(survey)
 library(mice)
+library(gtsummary)
 ```
 
 # Load Data
@@ -36,6 +37,219 @@ nhanes.df = read_csv("nhanes_bp.csv") |>
     cc_cvd_chd = factor(cc_cvd_chd),
     cc_cvd_stroke = factor(cc_cvd_stroke),
     cc_cvd_hf = factor(cc_cvd_hf)
+  )
+```
+
+# Basic table
+
+```{r}
+nhanes.df |>
+  tbl_summary(
+    by = bp_control_140_90,
+    include = c(
+      demo_race, demo_gender, demo_age_years,
+      bp_med_use, cc_smoke, cc_bmi,
+      cc_diabetes, cc_ckd,
+      cc_cvd_chd, cc_cvd_stroke, cc_cvd_hf
+    ),
+    missing = "ifany",
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    label = list(
+      demo_race ~ "Race",
+      demo_gender ~ "Sex",
+      demo_age_years ~ "Age (years)",
+      bp_med_use     ~ "Antihypertensive medication use",
+      cc_smoke       ~ "Smoking status",
+      cc_bmi         ~ "BMI category",
+      cc_diabetes    ~ "Diabetes",
+      cc_ckd         ~ "Chronic kidney disease",
+      cc_cvd_chd     ~ "Coronary heart disease",
+      cc_cvd_stroke  ~ "Stroke",
+      cc_cvd_hf      ~ "Heart failure"
+    )
+  ) |>
+  add_overall() |>
+  bold_labels()
+```
+
+
+## RAO-SCOTT F-test Calculation
+
+
+```{r}
+nhanes.df = nhanes.df %>%
+  mutate(wt_table = svy_weight_mec / 10)
+  
+des2 <- svydesign(
+  ids = ~svy_psu,
+  strata = ~svy_strata,
+  weights = ~wt_table,
+  nest = TRUE,
+  data = nhanes.df
+)
+
+rs_test_gender <- svychisq(
+  ~ bp_control_140_90 + demo_gender,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_race <- svychisq(
+  ~ bp_control_140_90 + demo_race,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_age <- svychisq(
+  ~ bp_control_140_90 + demo_age_years,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_bpmed <- svychisq(
+  ~ bp_control_140_90 + bp_med_use,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_smoke <- svychisq(
+  ~ bp_control_140_90 + cc_smoke,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_bmi <- svychisq(
+  ~ bp_control_140_90 + cc_bmi,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_diabetes <- svychisq(
+  ~ bp_control_140_90 + cc_diabetes,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_ckd <- svychisq(
+  ~ bp_control_140_90 + cc_ckd,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_cvd_chd <- svychisq(
+  ~ bp_control_140_90 + cc_cvd_chd,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_cvd_stroke <- svychisq(
+  ~ bp_control_140_90 + cc_cvd_stroke,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_cvd_hf <- svychisq(
+  ~ bp_control_140_90 + cc_cvd_hf,
+  design = des2,
+  statistic = "F"
+)
+
+rs_test_gender; rs_test_race; rs_test_age; rs_test_bpmed; rs_test_smoke; rs_test_bmi; 
+rs_test_diabetes; rs_test_ckd; rs_test_cvd_chd; rs_test_cvd_stroke; rs_test_cvd_hf
+```
+
+
+## Distribution Plots
+#continuous
+
+```{r}
+nhanes.df = 
+  nhanes.df %>% 
+  mutate(
+    period_grp = case_when(
+      svy_year %in% c("1999-2000", "2001-2002", "2003-2004",
+                      "2005-2006", "2007-2008", "2009-2010", "2011-2012") ~ "Pre-2013",
+      svy_year %in% c("2013-2014", "2015-2016", "2017-2020") ~ "Post-2013"),
+    period_grp = factor(period_grp),
+    wt_adj = case_when(period_grp == "Pre-2013"  ~ svy_weight_mec / 7,
+                       period_grp == "Post-2013" ~ svy_weight_mec / 3)
+  )
+
+```
+
+
+
+```{r}
+des <- svydesign(
+  ids = ~svy_psu,
+  strata = ~svy_strata,
+  weights = ~wt_adj,
+  nest = TRUE,
+  data = nhanes.df
+)
+
+```
+
+
+
+```{r}
+layout(matrix(1:2, nrow = 1))
+svyhist(~demo_age_years, design = subset(des, period_grp == "Pre-2013"),
+        main = "Pre-2013", xlab = "Age (years)", col = "SKYBLUE")
+svyhist(~demo_age_years, design = subset(des, period_grp == "Post-2013"),
+        main = "Post-2013", xlab = "Age (years)", col = "PINK")
+layout(1)
+```
+
+# categorical
+
+```{r}
+cat_vars <- c(
+  "demo_race", "demo_gender", "bp_med_use", "cc_smoke", "cc_bmi",
+  "cc_diabetes", "cc_ckd", "cc_cvd_chd", "cc_cvd_stroke", "cc_cvd_hf"
+)
+
+plot_df <- nhanes.df %>%
+  select(period_grp, wt_adj, all_of(cat_vars)) %>%
+  pivot_longer(
+    cols = all_of(cat_vars),
+    names_to = "variable",
+    values_to = "category"
+  ) %>%
+  filter(!is.na(category)) %>%
+  mutate(category = as.factor(category)) %>%
+  group_by(period_grp, variable, category) %>%
+  summarise(
+    w = sum(wt_adj, na.rm = TRUE),
+    .groups = "drop_last"
+  ) %>%
+  mutate(prop = w / sum(w)) %>%
+  ungroup() %>%
+  mutate(period_grp = factor(period_grp, levels = c("Pre-2013", "Post-2013")))
+
+ggplot(plot_df,
+       aes(x = prop, y = category, fill = period_grp)) +
+  geom_col(width = 0.7) +
+  facet_grid(variable ~ period_grp, scales = "free_y") +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(
+    values = c(
+      "Pre-2013" = "#87CEEB",  
+      "Post-2013" = "#FFC0CB"
+    )
+  ) +
+  labs(
+    x = "Weighted proportion",
+    y = NULL,
+    title = "Distribution of categorical variables before and after 2013"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "none",
+    strip.text.y = element_text(angle = 0)
   )
 ```
 
