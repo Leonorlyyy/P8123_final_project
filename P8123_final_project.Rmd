@@ -9,9 +9,11 @@ editor_options:
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(survey)
+library(mice)
 ```
 
-## Load Data
+# Load Data
 
 ```{r}
 ## Read csv that has filtered to only include blood pressure and hypertension sub-population
@@ -20,8 +22,140 @@ nhanes.df = read_csv("nhanes_bp.csv") |>
   select(svy_id, svy_psu, svy_strata, svy_weight_mec, svy_year,
          demo_race, demo_gender, demo_age_years, bp_control_140_90, 
          bp_med_use, cc_smoke, cc_bmi, cc_diabetes, cc_ckd,
-         cc_cvd_chd, cc_cvd_stroke, cc_cvd_hf)
+         cc_cvd_chd, cc_cvd_stroke, cc_cvd_hf) |>
+  mutate(
+    svy_year = factor(svy_year),
+    demo_race = factor(demo_race),
+    demo_gender = factor(demo_gender),
+    bp_control_140_90 = as.numeric(factor(bp_control_140_90)) - 1,
+    bp_med_use = factor(bp_med_use),
+    cc_smoke = factor(cc_smoke),
+    cc_bmi = factor(cc_bmi),
+    cc_diabetes = factor(cc_diabetes),
+    cc_ckd = factor(cc_ckd),
+    cc_cvd_chd = factor(cc_cvd_chd),
+    cc_cvd_stroke = factor(cc_cvd_stroke),
+    cc_cvd_hf = factor(cc_cvd_hf)
+  )
 ```
+
+# SRMI for missing data
+
+```{r}
+## set unnecessary variables to 0
+pred = quickpred(nhanes.df, mincor = .1,  
+                  exclude = c("svy_id", "svy_psu", "svy_strata", "svy_weight_mec", "svy_year"),
+                  method = "pearson")
+ini = mice(nhanes.df, pred = pred, m = 5, maxit = 5, print = FALSE, seed = 123)
+nhanes_comp = complete(ini) 
+```
+
+# Separate dataset based on survey years
+
+```{r}
+nhanes_comp = nhanes_comp |>
+  mutate(
+    period = case_when(svy_year %in% c("1999-2000", "2001-2002", "2003-2004",
+                      "2005-2006", "2007-2008", "2009-2010", "2011-2012") ~ "Pre-2013",
+      svy_year %in% c("2013-2014", "2015-2016", "2017-2020") ~ "Post-2013"),
+    period = factor(period),
+    wt_adj = case_when(period == "Pre-2013"  ~ svy_weight_mec / 7,
+                       period == "Post-2013" ~ svy_weight_mec / 3),
+    cc_smoke = relevel(cc_smoke, ref="Never")
+    )
+
+nhanes_pre2013 = nhanes_comp |>
+  filter(period == "Pre-2013")
+
+nhanes_post2013 = nhanes_comp |>
+  filter(period == "Post-2013")
+```
+
+# Modeling 
+
+## Pre-2013
+
+```{r}
+svy_pre2013 = svydesign(
+  strata=~svy_strata, id=~svy_psu, weights=~wt_adj, data=nhanes_pre2013, nest=T)
+
+glm_pre2013 = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
+                     + demo_age_years + bp_med_use + cc_smoke + cc_bmi
+                     + cc_ckd + cc_cvd_chd + cc_cvd_hf, 
+                     design = svy_pre2013, family = quasibinomial)
+summary(glm_pre2013)
+```
+
+## Post-2013
+
+```{r}
+svy_post2013 = svydesign(
+  strata=~svy_strata, id=~svy_psu, weights=~wt_adj, data=nhanes_post2013, nest=T)
+
+glm_post2013 = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
+                     + demo_age_years + bp_med_use + cc_smoke + cc_bmi
+                     + cc_ckd + cc_cvd_chd + cc_cvd_hf, 
+                     design = svy_post2013, family = quasibinomial)
+summary(glm_post2013)
+```
+
+# Subpopulation Analysis
+
+## Pre-2013
+
+```{r}
+svyby(~bp_control_140_90, ~demo_gender, design = svy_pre2013, svymean)
+svyby(~bp_control_140_90, ~demo_race, design = svy_pre2013, svymean)
+svyby(~bp_control_140_90, ~cc_ckd, design = svy_pre2013, svymean)
+svyby(~bp_control_140_90, ~cc_smoke, design = svy_pre2013, svymean)
+svyby(~bp_control_140_90, ~cc_bmi, design = svy_pre2013, svymean)
+```
+
+## Post-2013
+
+```{r}
+svyby(~bp_control_140_90, ~demo_gender, design = svy_post2013, svymean)
+svyby(~bp_control_140_90, ~demo_race, design = svy_post2013, svymean)
+svyby(~bp_control_140_90, ~cc_ckd, design = svy_post2013, svymean)
+svyby(~bp_control_140_90, ~cc_smoke, design = svy_post2013, svymean)
+svyby(~bp_control_140_90, ~cc_bmi, design = svy_post2013, svymean)
+```
+
+# Modeling with interactions
+
+## Pre-2013
+
+```{r}
+glm_pre2013_inter = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
+                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke + cc_diabetes
+                     + cc_ckd + cc_cvd_chd + cc_cvd_hf + demo_age_years*demo_gender 
+                     + cc_bmi*bp_med_use,
+                     design = svy_pre2013, family = quasibinomial)
+summary(glm_pre2013_inter)
+
+## Wald test
+regTermTest(glm_pre2013_inter, ~ demo_age_years:demo_gender)
+regTermTest(glm_pre2013_inter, ~ cc_bmi*bp_med_use)
+```
+
+## Post-2013
+
+```{r}
+glm_post2013_inter = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
+                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke + cc_diabetes
+                     + cc_ckd + cc_cvd_chd + cc_cvd_hf + demo_age_years*demo_gender 
+                     + cc_bmi*bp_med_use,
+                     design = svy_post2013, family = quasibinomial)
+summary(glm_post2013_inter)
+
+## Wald test
+regTermTest(glm_post2013_inter, ~ demo_age_years:demo_gender)
+regTermTest(glm_post2013_inter, ~ cc_bmi*bp_med_use)
+```
+
+
+
+
 
 
 
