@@ -55,20 +55,20 @@ nhanes_comp = complete(ini)
 ```{r}
 nhanes_comp = nhanes_comp |>
   mutate(
-    period = case_when(svy_year %in% c("1999-2000", "2001-2002", "2003-2004",
+    period_grp = case_when(svy_year %in% c("1999-2000", "2001-2002", "2003-2004",
                       "2005-2006", "2007-2008", "2009-2010", "2011-2012") ~ "Pre-2013",
       svy_year %in% c("2013-2014", "2015-2016", "2017-2020") ~ "Post-2013"),
-    period = factor(period),
-    wt_adj = case_when(period == "Pre-2013"  ~ svy_weight_mec / 7,
-                       period == "Post-2013" ~ svy_weight_mec / 3),
+    period_grp = factor(period_grp),
+    wt_adj = case_when(period_grp == "Pre-2013"  ~ svy_weight_mec / 7,
+                       period_grp == "Post-2013" ~ svy_weight_mec / 3),
     cc_smoke = relevel(cc_smoke, ref="Never")
     )
 
 nhanes_pre2013 = nhanes_comp |>
-  filter(period == "Pre-2013")
+  filter(period_grp == "Pre-2013")
 
 nhanes_post2013 = nhanes_comp |>
-  filter(period == "Post-2013")
+  filter(period_grp == "Post-2013")
 ```
 
 # Modeling 
