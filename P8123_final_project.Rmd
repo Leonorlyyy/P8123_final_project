@@ -364,6 +364,8 @@ regTermTest(glm_post2013_inter, ~ cc_bmi*bp_med_use)
 
 # OR Table
 
+## Pre-2013
+
 ```{r}
 OR_table_pre <- tidy(glm_pre2013_inter) |>
   mutate(
@@ -376,7 +378,11 @@ OR_table_pre <- tidy(glm_pre2013_inter) |>
   select(term, OR, CI, p.value)
 
 knitr::kable(OR_table_pre)
+```
 
+## Post-2013
+
+```{r}
 OR_table_post <- tidy(glm_post2013_inter) |>
   mutate(
     OR = round(exp(estimate), 2),
