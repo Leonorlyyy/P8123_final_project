@@ -80,7 +80,7 @@ nhanes.df |>
 
 
 ```{r}
-nhanes.df = nhanes.df %>%
+nhanes.table = nhanes.df %>%
   mutate(wt_table = svy_weight_mec / 10)
   
 des2 <- svydesign(
@@ -88,7 +88,7 @@ des2 <- svydesign(
   strata = ~svy_strata,
   weights = ~wt_table,
   nest = TRUE,
-  data = nhanes.df
+  data = nhanes.table
 )
 
 rs_test_gender <- svychisq(
@@ -167,8 +167,8 @@ rs_test_diabetes; rs_test_ckd; rs_test_cvd_chd; rs_test_cvd_stroke; rs_test_cvd_
 ### Seperate dataset and define survey object
 
 ```{r}
-nhanes.df = 
-  nhanes.df %>% 
+nhanes.table = 
+  nhanes.table %>% 
   mutate(
     period_grp = case_when(
       svy_year %in% c("1999-2000", "2001-2002", "2003-2004",
@@ -184,7 +184,7 @@ des <- svydesign(
   strata = ~svy_strata,
   weights = ~wt_adj,
   nest = TRUE,
-  data = nhanes.df
+  data = nhanes.table
 )
 ```
 
@@ -207,7 +207,7 @@ cat_vars <- c(
   "cc_diabetes", "cc_ckd", "cc_cvd_chd", "cc_cvd_stroke", "cc_cvd_hf"
 )
 
-plot_df <- nhanes.df %>%
+plot_df <- nhanes.table %>%
   select(period_grp, wt_adj, all_of(cat_vars)) %>%
   pivot_longer(
     cols = all_of(cat_vars),
@@ -367,7 +367,7 @@ regTermTest(glm_post2013_inter, ~ cc_bmi*bp_med_use)
 ```{r}
 OR_table_pre <- tidy(glm_pre2013_inter) |>
   mutate(
-    OR = exp(estimate),
+    OR = round(exp(estimate), 2),
     CI_low = exp(estimate - 1.96 * std.error),
     CI_high = exp(estimate + 1.96 * std.error),
     CI = paste0("(", round(CI_low, 3), ", ", round(CI_high, 3), ")"),
@@ -377,9 +377,9 @@ OR_table_pre <- tidy(glm_pre2013_inter) |>
 
 knitr::kable(OR_table_pre)
 
-OR_table_pre <- tidy(glm_post2013_inter) |>
+OR_table_post <- tidy(glm_post2013_inter) |>
   mutate(
-    OR = exp(estimate),
+    OR = round(exp(estimate), 2),
     CI_low = exp(estimate - 1.96 * std.error),
     CI_high = exp(estimate + 1.96 * std.error),
     CI = paste0("(", round(CI_low, 3), ", ", round(CI_high, 3), ")"),
@@ -387,7 +387,7 @@ OR_table_pre <- tidy(glm_post2013_inter) |>
   ) |>
   select(term, OR, CI, p.value)
 
-knitr::kable(OR_table_pre)
+knitr::kable(OR_table_post)
 ```
 
 
