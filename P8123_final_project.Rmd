@@ -336,7 +336,7 @@ svyby(~bp_control_140_90, ~cc_bmi, design = svy_post2013, svymean)
 
 ```{r}
 glm_pre2013_inter = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
-                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke + cc_diabetes
+                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke
                      + cc_ckd + cc_cvd_chd + cc_cvd_hf + demo_age_years*demo_gender 
                      + cc_bmi*bp_med_use,
                      design = svy_pre2013, family = quasibinomial)
@@ -351,7 +351,7 @@ regTermTest(glm_pre2013_inter, ~ cc_bmi*bp_med_use)
 
 ```{r}
 glm_post2013_inter = svyglm(bp_control_140_90 ~ demo_race + demo_gender + demo_age_years
-                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke + cc_diabetes
+                     + demo_age_years + bp_med_use + cc_bmi + cc_smoke
                      + cc_ckd + cc_cvd_chd + cc_cvd_hf + demo_age_years*demo_gender 
                      + cc_bmi*bp_med_use,
                      design = svy_post2013, family = quasibinomial)
