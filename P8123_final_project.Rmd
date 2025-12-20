@@ -2,8 +2,11 @@
 title: "P8123_final_project"
 author: "Leyang Rui"
 date: "2025-12-13"
-output: pdf_document
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -12,6 +15,7 @@ library(tidyverse)
 library(survey)
 library(mice)
 library(gtsummary)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
 # Load Data
@@ -367,7 +371,7 @@ regTermTest(glm_post2013_inter, ~ cc_bmi*bp_med_use)
 ## Pre-2013
 
 ```{r}
-OR_table_pre <- tidy(glm_pre2013_inter) |>
+OR_table_pre = tidy(glm_pre2013_inter) |>
   mutate(
     OR = round(exp(estimate), 2),
     CI_low = exp(estimate - 1.96 * std.error),
@@ -383,7 +387,7 @@ knitr::kable(OR_table_pre)
 ## Post-2013
 
 ```{r}
-OR_table_post <- tidy(glm_post2013_inter) |>
+OR_table_post = tidy(glm_post2013_inter) |>
   mutate(
     OR = round(exp(estimate), 2),
     CI_low = exp(estimate - 1.96 * std.error),
@@ -396,6 +400,70 @@ OR_table_post <- tidy(glm_post2013_inter) |>
 knitr::kable(OR_table_post)
 ```
 
+## Combined
+
+```{r}
+OR_table_combined = bind_rows(
+  OR_table_pre  %>% mutate(Period = "Pre-2013"),
+  OR_table_post %>% mutate(Period = "Post-2013")
+) %>%
+  select(term, Period, OR, CI, p.value) %>% 
+  arrange(term, factor(Period, levels = c("Pre-2013", "Post-2013"))) %>% 
+  filter(term != "(Intercept)") %>% 
+  mutate(term = recode(term,
+                       "demo_raceNon-Hispanic Asian" = "Race (Asian)",
+                       "demo_raceNon-Hispanic Black" = "Race (Black)",
+                       "demo_raceNon-Hispanic White" = "Race (White)",
+                       "demo_raceOther" = "Race (Other)",
+                       "demo_genderWomen" = "Gender (Women)",
+                       "demo_age_years" = "Age",
+                       "bp_med_useYes" = "BP medication use",
+                       "cc_bmi25 to <30" = "BMI (25 to <30)",
+                       "cc_bmi30 to <35" = "BMI (30 to <35)",
+                       "cc_bmi35+" = "BMI (35+)",
+                       "cc_smokeCurrent" = "Smoke (current)",
+                       "cc_smokeFormer" = "Smoke (former)",
+                       "cc_ckdYes" = "CKD",
+                       "cc_cvd_chdYes" = "CHD",
+                       "cc_cvd_hfYes" = "HF",
+                       "demo_genderWomen:demo_age_years" = "Gender (Women) * Age",
+                       "bp_med_useYes:cc_bmi25 to <30" = "BP medication * BMI (25 to <30)",
+                       "bp_med_useYes:cc_bmi30 to <35" = "BP medication * BMI (30 to <35)",
+                       "bp_med_useYes:cc_bmi35+" = "BP medication * BMI (35+)"
+                       ))%>% 
+  rename(Term = term, `p-value` = p.value) 
+
+# Reorder the terms and recode p-value
+OR_table_combined = 
+  OR_table_combined %>%
+  mutate(
+    term_group = case_when(
+      grepl("^Race", Term)   ~ 1,
+      Term == "Gender (Women)"     ~ 2,
+      Term == "Age"          ~ 3,
+      Term == "BP medication use"  ~ 4,
+      grepl("^BMI", Term)    ~ 5,
+      grepl("^Smoke", Term)  ~ 6,
+      Term == "CKD"          ~ 7,
+      Term == "CHD"          ~ 8,
+      Term == "HF"           ~ 9,
+      Term == "Gender (Women) * Age"    ~ 10,
+      grepl("^BP medication \\*", Term) ~ 11,
+      TRUE                   ~ 99
+    )
+  ) %>%
+  arrange(term_group, Term) %>%
+  select(-term_group) %>% 
+  group_by(Term) %>%
+  mutate(Term = if_else(row_number() == 1, Term, "")) %>%  # collapse the identical term rows
+  ungroup() %>% 
+  mutate(
+    `p-value` = ifelse(`p-value` < 0.0001, "< 0.0001", 
+                       sprintf("%.4f", round(`p-value`, 4)))
+    )
+
+knitr::kable(OR_table_combined)
+```
 
 
 
